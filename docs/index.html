@@ -1,36 +1,81 @@
-/* style.css */
-:root { color-scheme: light dark; }
-body { font-family: system-ui, Arial, sans-serif; margin: 0; }
-main { max-width: 720px; margin: 4rem auto; padding: 1rem; }
-textarea { width: 100%; }
-button { padding: .6rem 1rem; margin-top: .6rem; cursor: pointer; }
-#result { margin-top: 1rem; font-weight: 600; }
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mars Weather (Curiosity / MAAS)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <h1>Mars Weather</h1>
+    <p class="subtitle">Curiosity/REMS via MAAS .</p>
 
-.subtitle {
-  font-size: 0.95rem;
-  color: #555;
-  margin-top: 0.25rem;
-  line-height: 1.4;
-}
+    <p class="subtitle" id="backendHint">
+      Paste: <code id="backendUrl">https://mars-maas.onrender.com</code>
+      <button class="copy-btn" id="copyBackend" aria-label="Copy backend URL" title="Copy">Copy</button>
+      <span id="copyMsg" class="copy-msg" role="status" aria-live="polite"></span>
+    </p>
 
-/* Copy button + message */
-.copy-btn {
-  margin-left: .5rem;
-  padding: .25rem .5rem;
-  font-size: .85rem;
-  cursor: pointer;
-}
-.copy-msg {
-  margin-left: .5rem;
-  color: #4caf50;
-  font-size: .85rem;
-}
+    <div class="controls">
+      <input id="backend" placeholder="https://mars-maas-backend.onrender.com" />
+      <input id="sol" type="number" placeholder="Sol (optional)" />
+      <button id="go">Fetch</button>
+    </div>
 
-/* Output area */
-#out {
-  background: #1111;
-  padding: 1rem;
-  border-radius: 8px;
-  margin-top: 1rem;
-  overflow: auto;
-}
+    <!-- ⬇️ output area -->
+    <pre id="out">Set backend URL and click Fetch…</pre>
+  </main>
+
+  <script>
+  (function () {
+    // Copy-to-clipboard
+    const btn = document.getElementById('copyBackend');
+    const urlEl = document.getElementById('backendUrl');
+    const msg = document.getElementById('copyMsg');
+    btn.addEventListener('click', async () => {
+      const text = (urlEl.textContent || '').trim().replace(/\.$/, '');
+      try {
+        await navigator.clipboard.writeText(text);
+        msg.textContent = 'Copied';
+      } catch {
+        const ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); document.body.removeChild(ta);
+        msg.textContent = 'Copied';
+      }
+      setTimeout(() => { msg.textContent = ''; }, 1200);
+    });
+
+    // Fetch logic
+    const backendInput = document.getElementById('backend');
+    const solInput = document.getElementById('sol');
+    const go = document.getElementById('go');
+    const out = document.getElementById('out');
+
+    // optionally auto-fill from localStorage
+    backendInput.value = localStorage.getItem('BACKEND_URL') || '';
+
+    go.addEventListener('click', async () => {
+      const base = (backendInput.value || '').trim().replace(/\.$/, '');
+      if (!base) { out.textContent = 'Enter your backend URL above.'; return; }
+
+      // Compose path: /weather/latest or /weather/{sol}
+      const path = solInput.value ? `/weather/${encodeURIComponent(solInput.value)}` : '/weather/latest';
+      const url = base + path;
+
+      out.textContent = 'Loading…';
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        out.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        out.textContent = 'Error: ' + e.message + '\nURL: ' + url;
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
