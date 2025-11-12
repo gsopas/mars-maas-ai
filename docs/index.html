@@ -1,3 +1,4 @@
+<!-- index.html -->
 <!doctype html>
 <html lang="en">
 <head>
@@ -9,40 +10,44 @@
 <body>
   <main>
     <h1>Mars Weather</h1>
-    <p class="subtitle">Curiosity/REMS via MAAS — proxied by your Render API.</p>
-    <p class="subtitle">Paste :https://mars-maas.onrender.com.</p>
+    <p class="subtitle">Curiosity/REMS via MAAS .</p>
+
+    <p class="subtitle" id="backendHint">
+      Paste: <code id="backendUrl">https://mars-maas.onrender.com</code>
+      <button class="copy-btn" id="copyBackend" aria-label="Copy backend URL" title="Copy">Copy</button>
+      <span id="copyMsg" class="copy-msg" role="status" aria-live="polite"></span>
+    </p>
 
     <div class="controls">
       <input id="backend" placeholder="https://mars-maas-backend.onrender.com" />
       <input id="sol" type="number" placeholder="Sol (optional)" />
       <button id="go">Fetch</button>
     </div>
-
-    <pre id="out">Set backend URL and click Fetch…</pre>
   </main>
 
   <script>
-    const b = document.getElementById("backend");
-    const s = document.getElementById("sol");
-    const out = document.getElementById("out");
-    b.value = localStorage.getItem("BACKEND_URL") || "";
+  (function () {
+    const btn = document.getElementById('copyBackend');
+    const urlEl = document.getElementById('backendUrl');
+    const msg = document.getElementById('copyMsg');
 
-    document.getElementById("go").addEventListener("click", async () => {
-      const base = b.value.trim();
-      if (!base) { out.textContent = "Enter your backend URL."; return; }
-      localStorage.setItem("BACKEND_URL", base);
-      const path = s.value ? `/weather/${encodeURIComponent(s.value)}` : "/weather/latest";
-      out.textContent = "Loading…";
+    btn.addEventListener('click', async () => {
+      const text = (urlEl.textContent || '').trim().replace(/\.$/, '');
       try {
-        const res = await fetch(base + path);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        out.textContent = JSON.stringify(data, null, 2);
-      } catch (e) {
-        out.textContent = "Error: " + e.message;
+        await navigator.clipboard.writeText(text);
+        msg.textContent = 'Copied';
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        msg.textContent = 'Copied';
       }
+      setTimeout(() => { msg.textContent = ''; }, 1200);
     });
+  })();
   </script>
 </body>
 </html>
-
