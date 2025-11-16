@@ -24,4 +24,5 @@ Open the Pages site, paste your Render URL, and fetch data
 
 [URL](https://gsopas.github.io/mars-maas/)
 
-![.gif](docs/mars.gif)
+![.gif](docs/mars-maas-ai.gif)
+![screenshot](docs/mars-pic.png)
