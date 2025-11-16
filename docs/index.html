@@ -6,11 +6,19 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Mars Weather (Curiosity / MAAS)</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    /* optional light styles for the AI card; remove if you already style cards */
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-top: 12px; }
+    .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .tag { font-size: 0.85rem; padding: 2px 6px; border-radius: 6px; background: #eee; }
+    .loading { opacity: 0.7; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+  </style>
 </head>
 <body>
   <main>
     <h1>Mars Weather</h1>
-    <p class="subtitle">Curiosity/REMS via MAAS .</p>
+    <p class="subtitle">Curiosity/REMS via MAAS.</p>
 
     <p class="subtitle" id="backendHint">
       Paste: <code id="backendUrl">https://mars-maas.onrender.com</code>
@@ -20,17 +28,28 @@
 
     <div class="controls">
       <input id="backend" placeholder="https://mars-maas-backend.onrender.com" />
-      <input id="sol" type="number" placeholder="Sol (optional)" />
+      <input id="sol" type="number" min="0" placeholder="Sol (0 = latest)" />
       <button id="go">Fetch</button>
+      <!-- NEW: AI summary button -->
+      <button id="btnAi" title="Generate AI summary of this Sol">AI summary</button>
     </div>
 
-    <!-- ⬇️ output area -->
+    <!-- Output: raw JSON -->
     <pre id="out">Set backend URL and click Fetch…</pre>
+
+    <!-- NEW: AI summary box -->
+    <section id="aiBox" class="card" aria-live="polite">
+      <div class="row">
+        <strong>AI summary</strong>
+        <span id="aiMode" class="tag"></span>
+      </div>
+      <p id="aiText">No summary yet.</p>
+    </section>
   </main>
 
   <script>
   (function () {
-    // Copy-to-clipboard
+    // ---------- Copy-to-clipboard ----------
     const btn = document.getElementById('copyBackend');
     const urlEl = document.getElementById('backendUrl');
     const msg = document.getElementById('copyMsg');
@@ -48,34 +67,90 @@
       setTimeout(() => { msg.textContent = ''; }, 1200);
     });
 
-    // Fetch logic
+    // ---------- Elements ----------
     const backendInput = document.getElementById('backend');
     const solInput = document.getElementById('sol');
     const go = document.getElementById('go');
     const out = document.getElementById('out');
 
-    // optionally auto-fill from localStorage
-    backendInput.value = localStorage.getItem('BACKEND_URL') || '';
+    // NEW: AI elems
+    const btnAi = document.getElementById('btnAi');
+    const aiText = document.getElementById('aiText');
+    const aiMode = document.getElementById('aiMode');
 
-    go.addEventListener('click', async () => {
+    // ---------- Helpers ----------
+    backendInput.value = (localStorage.getItem('BACKEND_URL') || '').trim();
+
+    function getBaseUrl() {
       const base = (backendInput.value || '').trim().replace(/\.$/, '');
-      if (!base) { out.textContent = 'Enter your backend URL above.'; return; }
+      return base.endsWith('/') ? base.slice(0, -1) : base;
+    }
+    function getSol() {
+      const v = Number(solInput.value);
+      return Number.isFinite(v) && v >= 0 ? v : 0;
+    }
+    function rememberBase(url) {
+      if (url && url.startsWith('http')) {
+        localStorage.setItem('BACKEND_URL', url);
+      }
+    }
+    async function fetchJson(url, opts = {}, timeoutMs = 20000) {
+      const ctrl = new AbortController();
+      const id = setTimeout(() => ctrl.abort(), timeoutMs);
+      try {
+        const r = await fetch(url, { ...opts, signal: ctrl.signal });
+        if (!r.ok) {
+          let msg = `HTTP ${r.status}`;
+          try {
+            const j = await r.json();
+            if (j && j.detail) msg += ` — ${j.detail}`;
+          } catch {}
+          throw new Error(msg);
+        }
+        return await r.json();
+      } finally {
+        clearTimeout(id);
+      }
+    }
 
-      // Compose path: /weather/latest or /weather/{sol}
-      const path = solInput.value ? `/weather/${encodeURIComponent(solInput.value)}` : '/weather/latest';
+    // ---------- Existing "Fetch" handler (normalised /weather/*) ----------
+    go.addEventListener('click', async () => {
+      const base = getBaseUrl();
+      if (!base) { out.textContent = 'Enter your backend URL above.'; return; }
+      rememberBase(base);
+
+      const sol = getSol();
+      const path = sol ? `/weather/${encodeURIComponent(sol)}` : '/weather/latest';
       const url = base + path;
 
       out.textContent = 'Loading…';
       try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const data = await fetchJson(url);
         out.textContent = JSON.stringify(data, null, 2);
       } catch (e) {
         out.textContent = 'Error: ' + e.message + '\nURL: ' + url;
       }
     });
-  })();
-  </script>
-</body>
-</html>
+
+    // ---------- NEW: AI summary handler (/ai/brief/*) ----------
+    btnAi.addEventListener('click', async () => {
+      const base = getBaseUrl();
+      if (!base) { aiText.textContent = 'Enter your backend URL above.'; return; }
+      rememberBase(base);
+
+      const sol = getSol();
+      const path = sol === 0 ? '/ai/brief/latest' : `/ai/brief/${encodeURIComponent(sol)}`;
+      const url = base + path;
+
+      aiMode.textContent = '';
+      aiText.textContent = 'Generating summary…';
+      btnAi.disabled = true;
+      aiText.classList.add('loading');
+
+      try {
+        const data = await fetchJson(url);
+        aiMode.textContent = data.mode || '';
+        aiText.textContent = data.text || 'No text returned.';
+      } catch (e) {
+        aiMode.textContent = '';
+        aiText.textContent = 'Error: ' + e.message + '\nURL
