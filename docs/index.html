@@ -13,6 +13,8 @@
     .tag { font-size: 0.85rem; padding: 2px 6px; border-radius: 6px; background: #eee; }
     .loading { opacity: 0.7; }
     button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    input[type="url"], input[type="number"] { padding: 6px 8px; min-width: 280px; }
   </style>
 </head>
 <body>
@@ -21,23 +23,23 @@
     <p class="subtitle">Curiosity/REMS via MAAS.</p>
 
     <p class="subtitle" id="backendHint">
-      Paste: <code id="backendUrl">https://mars-maas.onrender.com</code>
+      Paste: <code id="backendUrl">https://mars-maas-ai.onrender.com</code>
       <button class="copy-btn" id="copyBackend" aria-label="Copy backend URL" title="Copy">Copy</button>
       <span id="copyMsg" class="copy-msg" role="status" aria-live="polite"></span>
     </p>
 
     <div class="controls">
-      <input id="backend" placeholder="https://mars-maas-backend.onrender.com" />
+      <label for="backend" class="visually-hidden">Backend</label>
+      <input id="backend" aria-label="Backend base URL" placeholder="https://mars-maas-ai-backend.onrender.com" />
       <input id="sol" type="number" min="0" placeholder="Sol (0 = latest)" />
       <button id="go">Fetch</button>
-      <!-- NEW: AI summary button -->
       <button id="btnAi" title="Generate AI summary of this Sol">AI summary</button>
     </div>
 
     <!-- Output: raw JSON -->
     <pre id="out">Set backend URL and click Fetch…</pre>
 
-    <!-- NEW: AI summary box -->
+    <!-- AI summary box -->
     <section id="aiBox" class="card" aria-live="polite">
       <div class="row">
         <strong>AI summary</strong>
@@ -50,21 +52,21 @@
   <script>
   (function () {
     // ---------- Copy-to-clipboard ----------
-    const btn = document.getElementById('copyBackend');
+    const btnCopy = document.getElementById('copyBackend');
     const urlEl = document.getElementById('backendUrl');
-    const msg = document.getElementById('copyMsg');
-    btn.addEventListener('click', async () => {
+    const copyMsg = document.getElementById('copyMsg');
+    btnCopy.addEventListener('click', async () => {
       const text = (urlEl.textContent || '').trim().replace(/\.$/, '');
       try {
         await navigator.clipboard.writeText(text);
-        msg.textContent = 'Copied';
+        copyMsg.textContent = 'Copied';
       } catch {
         const ta = document.createElement('textarea');
         ta.value = text; document.body.appendChild(ta); ta.select();
         document.execCommand('copy'); document.body.removeChild(ta);
-        msg.textContent = 'Copied';
+        copyMsg.textContent = 'Copied';
       }
-      setTimeout(() => { msg.textContent = ''; }, 1200);
+      setTimeout(() => { copyMsg.textContent = ''; }, 1200);
     });
 
     // ---------- Elements ----------
@@ -73,13 +75,17 @@
     const go = document.getElementById('go');
     const out = document.getElementById('out');
 
-    // NEW: AI elems
+    // AI elems
     const btnAi = document.getElementById('btnAi');
     const aiText = document.getElementById('aiText');
     const aiMode = document.getElementById('aiMode');
 
     // ---------- Helpers ----------
+    // Pre-fill from localStorage, otherwise from the "Paste:" hint
     backendInput.value = (localStorage.getItem('BACKEND_URL') || '').trim();
+    if (!backendInput.value) {
+      backendInput.value = (document.getElementById('backendUrl')?.textContent || '').trim();
+    }
 
     function getBaseUrl() {
       const base = (backendInput.value || '').trim().replace(/\.$/, '');
@@ -113,7 +119,7 @@
       }
     }
 
-    // ---------- Existing "Fetch" handler (normalised /weather/*) ----------
+    // ---------- Fetch handler (normalised /weather/*) ----------
     go.addEventListener('click', async () => {
       const base = getBaseUrl();
       if (!base) { out.textContent = 'Enter your backend URL above.'; return; }
@@ -132,7 +138,7 @@
       }
     });
 
-    // ---------- NEW: AI summary handler (/ai/brief/*) ----------
+    // ---------- AI summary handler (/ai/brief/*) ----------
     btnAi.addEventListener('click', async () => {
       const base = getBaseUrl();
       if (!base) { aiText.textContent = 'Enter your backend URL above.'; return; }
@@ -153,4 +159,13 @@
         aiText.textContent = data.text || 'No text returned.';
       } catch (e) {
         aiMode.textContent = '';
-        aiText.textContent = 'Error: ' + e.message + '\nURL
+        aiText.textContent = 'Error: ' + e.message + '\nURL: ' + url;
+      } finally {
+        btnAi.disabled = false;
+        aiText.classList.remove('loading');
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
